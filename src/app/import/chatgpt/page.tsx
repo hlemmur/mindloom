@@ -149,8 +149,8 @@ export default function ChatGPTImportPage() {
               </CardHeader>
               <CardContent>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-                  <li>Go to <a href="https://platform.openai.com/account" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Account Settings</a></li>
-                  <li>Navigate to the "Data Export" section</li>
+                  <li>Go to <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ChatGPT Account Settings</a></li>
+                  <li>Navigate to the "Export Data" section</li>
                   <li>Request an export of your ChatGPT conversation data</li>
                   <li>Wait for the export email (this can take up to 30 days)</li>
                   <li>Download the ZIP file and extract the JSON file(s)</li>
