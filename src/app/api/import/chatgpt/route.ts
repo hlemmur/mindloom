@@ -85,14 +85,25 @@ export async function POST(request: NextRequest) {
 
     console.log('[ChatGPT Import API] File received:', file.name, 'Size:', file.size, 'bytes');
 
-    // Check file size (10MB limit)
+    // Check file size and suggest chunking for very large files
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const WARN_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    
     if (file.size > MAX_FILE_SIZE) {
       console.error('[ChatGPT Import API] File too large:', file.size, 'bytes');
+      const sizeMB = Math.round(file.size / 1024 / 1024);
       return NextResponse.json(
-        { success: false, error: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds maximum limit of 10MB` },
+        { 
+          success: false, 
+          error: `File size (${sizeMB}MB) exceeds maximum limit of 10MB. For files larger than 10MB, please split your ChatGPT export into smaller chunks of conversations and import them separately. You can also use the streaming JSON import mode by sending conversation arrays in smaller batches.`,
+          suggestion: sizeMB > 50 ? 'CHUNK_REQUIRED' : 'CONSIDER_CHUNKING'
+        },
         { status: 413 }
       );
+    }
+    
+    if (file.size > WARN_FILE_SIZE) {
+      console.warn('[ChatGPT Import API] Large file detected:', Math.round(file.size / 1024 / 1024), 'MB');
     }
 
     if (!file.name.toLowerCase().endsWith('.json')) {
