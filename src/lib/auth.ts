@@ -72,11 +72,17 @@ export const authOptions: NextAuthOptions = {
 
         // If user doesn't exist, create them
         if (!dbUser) {
-          result = await query(
-            'INSERT INTO users (email, name) VALUES ($1, $2) RETURNING *',
-            [user.email, user.name || profile?.name || null]
-          );
-          dbUser = result.rows[0];
+          try {
+            result = await query(
+              'INSERT INTO users (email, name) VALUES ($1, $2) RETURNING *',
+              [user.email, user.name || profile?.name || null]
+            );
+            dbUser = result.rows[0];
+            console.log('Created new user:', dbUser.id);
+          } catch (insertError) {
+            console.error('Failed to create user:', insertError);
+            return false;
+          }
         } else {
           // Update user info if name has changed
           if (user.name && user.name !== dbUser.name) {
@@ -132,6 +138,8 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
+
+  debug: process.env.NODE_ENV === 'development',
 
   secret: process.env.NEXTAUTH_SECRET,
 };
