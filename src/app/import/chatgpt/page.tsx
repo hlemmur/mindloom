@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import ImportProgressComponent from '@/components/ImportProgress';
+import ChunkedUpload from '@/components/ChunkedUpload';
 
 interface ImportResult {
   success: boolean;
@@ -47,6 +48,7 @@ export default function ChatGPTImportPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [isPollingProgress, setIsPollingProgress] = useState(false);
+  const [showChunkedUpload, setShowChunkedUpload] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -185,11 +187,21 @@ export default function ChatGPTImportPage() {
       }
     } catch (error) {
       console.error('Import error:', error);
-      setImportResult({
-        success: false,
-        errors: ['Failed to import data'],
-      });
-      setIsUploading(false);
+      
+      // Check if it's a large file that might benefit from chunked upload
+      const isLargeFile = file && file.size > 5 * 1024 * 1024; // 5MB+
+      if (isLargeFile && error instanceof Error && 
+          (error.message.includes('timeout') || error.message.includes('too large') || error.message.includes('Failed to fetch'))) {
+        console.log('Large file upload failed, offering chunked upload option');
+        setShowChunkedUpload(true);
+        setIsUploading(false);
+      } else {
+        setImportResult({
+          success: false,
+          errors: [error instanceof Error ? error.message : 'Failed to import data'],
+        });
+        setIsUploading(false);
+      }
     }
   };
 
@@ -213,7 +225,23 @@ export default function ChatGPTImportPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {!importResult ? (
+        {showChunkedUpload && file ? (
+          <ChunkedUpload
+            file={file}
+            sourceName={sourceName}
+            onSuccess={(result) => {
+              setImportResult(result);
+              setShowChunkedUpload(false);
+            }}
+            onError={(error) => {
+              setImportResult({
+                success: false,
+                errors: [error],
+              });
+              setShowChunkedUpload(false);
+            }}
+          />
+        ) : !importResult ? (
           <div className="space-y-6">
             {/* Instructions */}
             <Card>
