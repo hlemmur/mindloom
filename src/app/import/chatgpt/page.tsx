@@ -131,7 +131,16 @@ export default function ChatGPTImportPage() {
       setSourceName(`ChatGPT Import - ${baseName}`);
     }
 
-    // Validate the file
+    // Check file size before validation
+    const VERCEL_HARD_LIMIT = 4 * 1024 * 1024; // 4MB - Vercel's actual limit
+    
+    if (selectedFile.size > VERCEL_HARD_LIMIT) {
+      console.log('[Validation] File exceeds Vercel limit, showing split guide immediately');
+      setShowFileSplitGuide(true);
+      return;
+    }
+
+    // Validate the file (only for files under 4MB)
     setIsValidating(true);
     try {
       const formData = new FormData();
