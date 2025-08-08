@@ -118,19 +118,39 @@ function parseMessages(messagesData: unknown): ChatGPTMessage[] {
   } else if (typeof messagesData === 'object' && messagesData !== null) {
     // Mapping format (common in ChatGPT exports)
     Object.values(messagesData as Record<string, unknown>).forEach((nodeUnknown) => {
-      const node = nodeUnknown as { id?: string; message?: { content?: { parts?: string[] }; author?: { role?: string }; create_time?: number } };
-      if (node?.message?.content?.parts && node.message.content.parts.length > 0) {
-        const content = node.message.content.parts.join('\n');
-        if (content.trim()) {
-          messages.push({
-            id: node.id || crypto.randomUUID(),
-            role: (node.message.author?.role as 'user' | 'assistant' | 'system') || 'user',
-            content: content,
-            timestamp: node.message.create_time 
-              ? new Date(node.message.create_time * 1000).toISOString()
-              : new Date().toISOString(),
-          });
+      const node = nodeUnknown as { id?: string; message?: { content?: any; author?: { role?: string }; create_time?: number } };
+      const msg = node?.message;
+      if (!msg) return;
+
+      const authorRole = (msg.author?.role as 'user' | 'assistant' | 'system') || 'user';
+      const contentObj = msg.content;
+      let content = '';
+
+      if (contentObj?.content_type === 'text') {
+        const parts: string[] = Array.isArray(contentObj.parts) ? contentObj.parts : [];
+        content = parts.join('\n');
+      } else if (contentObj?.content_type === 'user_editable_context') {
+        const pieces: string[] = [];
+        if (typeof contentObj.user_profile === 'string' && contentObj.user_profile.trim()) {
+          pieces.push(`User profile:\n${contentObj.user_profile.trim()}`);
         }
+        if (typeof contentObj.user_instructions === 'string' && contentObj.user_instructions.trim()) {
+          pieces.push(`User instructions:\n${contentObj.user_instructions.trim()}`);
+        }
+        content = pieces.join('\n\n');
+      } else if (contentObj) {
+        // Fallback to JSON string if unknown shape
+        try { content = JSON.stringify(contentObj); } catch { content = ''; }
+      }
+
+      if (typeof content === 'string' && content.trim()) {
+        const ts = msg.create_time;
+        messages.push({
+          id: node.id || crypto.randomUUID(),
+          role: authorRole,
+          content,
+          timestamp: ts ? new Date(ts * 1000).toISOString() : new Date().toISOString(),
+        });
       }
     });
   }
