@@ -167,6 +167,14 @@ export default function ChatGPTImportPage() {
         body: formData,
       });
 
+      // Check for Vercel payload size limit (413 error)
+      if (response.status === 413) {
+        console.log('Vercel payload too large error detected, using chunked upload fallback');
+        setShowChunkedUpload(true);
+        setIsUploading(false);
+        return;
+      }
+
       const result = await response.json();
       setImportResult(result);
 

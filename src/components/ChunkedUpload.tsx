@@ -97,10 +97,10 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
       <CardContent className="py-6">
         <div className="text-center space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Large File Detected</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Using Smart Upload Method</h3>
             <p className="text-gray-600 text-sm mt-1">
-              This file is quite large ({Math.round(file.size / 1024 / 1024)}MB). 
-              We'll upload it in smaller batches for better reliability.
+              Your file ({Math.round(file.size / 1024 / 1024)}MB) exceeds Vercel's upload limits. 
+              We'll process it in smaller, reliable batches instead - same result, better experience!
             </p>
           </div>
 
@@ -121,8 +121,16 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
             onClick={uploadInChunks}
             disabled={isUploading}
             className="w-full"
+            size="lg"
           >
-            {isUploading ? 'Uploading...' : 'Upload in Batches'}
+            {isUploading ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Processing Batches...
+              </div>
+            ) : (
+              '🚀 Start Smart Upload'
+            )}
           </Button>
         </div>
       </CardContent>
