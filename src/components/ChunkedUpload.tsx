@@ -23,8 +23,36 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
     setStage('Reading file...');
     
     try {
-      const content = await file.text();
-      const conversations = JSON.parse(content);
+      // Add timeout and memory protection for very large files
+      let content: string;
+      
+      // For very large files (>10MB), add warning about memory usage
+      if (file.size > 10 * 1024 * 1024) {
+        setStage('Reading large file - this may take a moment...');
+      }
+      
+      try {
+        // Read with timeout protection
+        const readPromise = file.text();
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('File reading timeout after 60 seconds')), 60000)
+        );
+        
+        content = await Promise.race([readPromise, timeoutPromise]);
+      } catch (readError) {
+        console.error('File reading failed:', readError);
+        throw new Error(`Failed to read file: ${readError instanceof Error ? readError.message : 'Unknown error'}. File may be too large or corrupted.`);
+      }
+      
+      setStage('Parsing conversations...');
+      
+      let conversations: any[];
+      try {
+        conversations = JSON.parse(content);
+      } catch (parseError) {
+        console.error('JSON parsing failed:', parseError);
+        throw new Error('Invalid JSON format. Please ensure you uploaded a valid ChatGPT export file.');
+      }
       
       if (!Array.isArray(conversations)) {
         throw new Error('Invalid file format - expected array of conversations');
@@ -36,8 +64,19 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
 
       setStage(`Uploading ${totalConversations} conversations in batches...`);
 
-      // Send conversations in chunks
-      const chunkSize = 50; // 50 conversations per chunk
+      // Send conversations in chunks - smaller chunks for larger files
+      const conversationCount = conversations.length;
+      let chunkSize = 50; // Default: 50 conversations per chunk
+      
+      // Use smaller chunks for very large files to avoid timeouts
+      if (file.size > 20 * 1024 * 1024) { // >20MB files
+        chunkSize = 20;
+      } else if (file.size > 10 * 1024 * 1024) { // >10MB files  
+        chunkSize = 30;
+      }
+      
+      console.log(`Processing ${conversationCount} conversations in chunks of ${chunkSize}`);
+      
       for (let i = 0; i < conversations.length; i += chunkSize) {
         const chunk = conversations.slice(i, i + chunkSize);
         const chunkIndex = Math.floor(i / chunkSize) + 1;
@@ -46,22 +85,43 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
         setStage(`Uploading batch ${chunkIndex}/${totalChunks} (${chunk.length} conversations)...`);
         setProgress((processedCount / totalConversations) * 100);
 
-        const response = await fetch('/api/import/chatgpt', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            conversations: chunk,
-            sourceName: i === 0 ? sourceName : undefined, // Only set name for first chunk
-            sourceId, // Reuse same source for subsequent chunks
-          }),
-        });
-
-        const result = await response.json();
+        // Retry logic for failed chunks
+        let retries = 3;
+        let result;
         
-        if (!result.success) {
-          throw new Error(result.error || 'Upload failed');
+        while (retries > 0) {
+          try {
+            const response = await fetch('/api/import/chatgpt', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                conversations: chunk,
+                sourceName: i === 0 ? sourceName : undefined, // Only set name for first chunk
+                sourceId, // Reuse same source for subsequent chunks
+              }),
+            });
+
+            result = await response.json();
+            
+            if (result.success) {
+              break; // Success, exit retry loop
+            } else {
+              throw new Error(result.error || 'Upload failed');
+            }
+          } catch (chunkError) {
+            retries--;
+            if (retries === 0) {
+              throw new Error(`Failed to upload batch ${chunkIndex} after 3 attempts: ${chunkError instanceof Error ? chunkError.message : 'Unknown error'}`);
+            }
+            
+            console.warn(`Batch ${chunkIndex} failed, retrying... (${retries} attempts left)`);
+            setStage(`Retrying batch ${chunkIndex}/${totalChunks}... (${retries} attempts left)`);
+            
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
         }
 
         // Store sourceId from first chunk
@@ -102,6 +162,11 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
               Your file ({Math.round(file.size / 1024 / 1024)}MB) exceeds Vercel's upload limits. 
               We'll process it in smaller, reliable batches instead - same result, better experience!
             </p>
+            {file.size > 30 * 1024 * 1024 && (
+              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                ⚠️ Very large file detected. Processing may take several minutes. Please keep this tab open.
+              </div>
+            )}
           </div>
 
           {isUploading && (
