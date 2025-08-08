@@ -154,6 +154,14 @@ export default function ChatGPTImportPage() {
   const handleImport = async () => {
     if (!file || !validationResult?.success) return;
 
+    // Proactive size check - use chunked upload for files > 2MB
+    const VERCEL_SAFE_LIMIT = 2 * 1024 * 1024; // 2MB
+    if (file.size > VERCEL_SAFE_LIMIT) {
+      console.log('[Import] File size', file.size, 'exceeds Vercel limit, using chunked upload');
+      setShowChunkedUpload(true);
+      return;
+    }
+
     setIsUploading(true);
     setImportProgress(null);
     
@@ -162,14 +170,18 @@ export default function ChatGPTImportPage() {
       formData.append('file', file);
       formData.append('sourceName', sourceName || 'ChatGPT Import');
 
+      console.log('[Import] Starting upload request...');
       const response = await fetch('/api/import/chatgpt', {
         method: 'POST',
         body: formData,
       });
 
+      console.log('[Import] Response status:', response.status);
+      console.log('[Import] Response headers:', Object.fromEntries(response.headers.entries()));
+
       // Check for Vercel payload size limit (413 error)
       if (response.status === 413) {
-        console.log('Vercel payload too large error detected, using chunked upload fallback');
+        console.log('[Import] 413 Payload too large - switching to chunked upload');
         setShowChunkedUpload(true);
         setIsUploading(false);
         return;
