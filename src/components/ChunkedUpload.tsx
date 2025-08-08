@@ -146,7 +146,27 @@ export default function ChunkedUpload({ file, sourceName, onSuccess, onError }: 
 
     } catch (error) {
       console.error('Chunked upload error:', error);
-      onError(error instanceof Error ? error.message : 'Unknown error');
+      console.error('Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack'
+      });
+      
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Provide specific guidance based on error type
+        if (error.message.includes('memory') || error.message.includes('out of memory')) {
+          errorMessage = `File too large for browser memory (${Math.round(file.size / 1024 / 1024)}MB). Try using a smaller file or contact support for alternative import methods.`;
+        } else if (error.message.includes('timeout') || error.message.includes('reading timeout')) {
+          errorMessage = `File reading timed out (${Math.round(file.size / 1024 / 1024)}MB). File may be too large or connection too slow.`;
+        } else if (error.message.includes('JSON')) {
+          errorMessage = `Invalid file format. Please ensure this is a valid ChatGPT export JSON file.`;
+        }
+      }
+      
+      onError(errorMessage);
     } finally {
       setIsUploading(false);
     }

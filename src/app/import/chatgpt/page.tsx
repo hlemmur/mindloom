@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import ImportProgressComponent from '@/components/ImportProgress';
 import ChunkedUpload from '@/components/ChunkedUpload';
+import LargeFileUpload from '@/components/LargeFileUpload';
 
 interface ImportResult {
   success: boolean;
@@ -154,9 +155,40 @@ export default function ChatGPTImportPage() {
   const handleImport = async () => {
     if (!file || !validationResult?.success) return;
 
-    // Proactive size check - use chunked upload for files > 2MB
+    // Proactive size check - choose best upload method based on file size
     const VERCEL_SAFE_LIMIT = 2 * 1024 * 1024; // 2MB
-    if (file.size > VERCEL_SAFE_LIMIT) {
+    const LARGE_FILE_LIMIT = 8 * 1024 * 1024; // 8MB - use server processing for files this big
+    
+    if (file.size > LARGE_FILE_LIMIT) {
+      console.log('[Import] Large file detected, using server-side processing');
+      // For very large files (>8MB), use server-side processing
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('sourceName', sourceName || 'Large File Import');
+
+        const response = await fetch('/api/import/large-file', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+        setImportResult(result);
+
+        if (result.success && result.data?.progressId) {
+          console.log('[Import] Server-side import started, tracking progress');
+          setIsPollingProgress(true);
+        }
+      } catch (error) {
+        console.error('[Import] Server-side import failed:', error);
+        setImportResult({
+          success: false,
+          errors: [error instanceof Error ? error.message : 'Server-side import failed'],
+        });
+      }
+      setIsUploading(false);
+      return;
+    } else if (file.size > VERCEL_SAFE_LIMIT) {
       console.log('[Import] File size', file.size, 'exceeds Vercel limit, using chunked upload');
       setShowChunkedUpload(true);
       return;
