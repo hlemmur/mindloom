@@ -14,7 +14,7 @@ interface ImportResult {
     sourceId: string;
     imported: number;
     errors: number;
-    preview?: any;
+    preview?: { conversationCount?: number };
   };
   errors?: string[];
   message?: string;
@@ -27,7 +27,7 @@ export default function ChatGPTImportPage() {
   const [sourceName, setSourceName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
-  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationResult, setValidationResult] = useState<{ success: boolean; data?: { conversationCount: number; firstTitle?: string; format: string }; error?: string } | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export default function ChatGPTImportPage() {
               </CardHeader>
               <CardContent>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
-                  <li>Go to <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ChatGPT Account Settings</a></li>
+                   <li>Go to <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ChatGPT Account Settings</a></li>
                   <li>Navigate to the "Export Data" section</li>
                   <li>Request an export of your ChatGPT conversation data</li>
                   <li>Wait for the export email (this can take up to 30 days)</li>
@@ -158,7 +158,7 @@ export default function ChatGPTImportPage() {
                 </ol>
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> OpenAI exports can contain multiple JSON files. Upload the one labeled "conversations.json" or similar.
+                     <strong>Note:</strong> OpenAI exports can contain multiple JSON files. Upload the one labeled &quot;conversations.json&quot; or similar.
                   </p>
                 </div>
               </CardContent>
@@ -222,10 +222,10 @@ export default function ChatGPTImportPage() {
                         <p className="text-sm text-green-800 font-medium mb-1">✅ File validated successfully!</p>
                         {validationResult.data && (
                           <div className="text-xs text-green-700">
-                            <p>Found {validationResult.data.conversationCount} conversation(s)</p>
-                            <p>Format: {validationResult.data.format}</p>
-                            {validationResult.data.firstTitle && (
-                              <p>First conversation: "{validationResult.data.firstTitle}"</p>
+                             <p>Found {validationResult.data?.conversationCount} conversation(s)</p>
+                             <p>Format: {validationResult.data?.format}</p>
+                             {validationResult.data?.firstTitle && (
+                               <p>First conversation: &quot;{validationResult.data.firstTitle}&quot;</p>
                             )}
                           </div>
                         )}

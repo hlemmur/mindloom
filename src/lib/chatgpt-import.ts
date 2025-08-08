@@ -1,4 +1,4 @@
-import { ChatGPTConversation, ChatGPTMessage, KnowledgeItem } from '@/lib/types';
+import { ChatGPTConversation, ChatGPTMessage } from '@/lib/types';
 import { createKnowledgeItem } from '@/lib/api/knowledge-items';
 import { updateDataSourceSyncStatus } from '@/lib/api/data-sources';
 import { processKnowledgeItemWithAI } from '@/lib/ai-processing';
@@ -36,7 +36,7 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
 }
 
 // Parse messages from different ChatGPT export formats
-function parseMessages(messagesData: any): ChatGPTMessage[] {
+function parseMessages(messagesData: unknown): ChatGPTMessage[] {
   const messages: ChatGPTMessage[] = [];
 
   if (Array.isArray(messagesData)) {
@@ -49,9 +49,10 @@ function parseMessages(messagesData: any): ChatGPTMessage[] {
         content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         timestamp: msg.timestamp || msg.create_time || new Date().toISOString(),
       }));
-  } else if (typeof messagesData === 'object') {
+  } else if (typeof messagesData === 'object' && messagesData !== null) {
     // Mapping format (common in ChatGPT exports)
-    Object.values(messagesData).forEach((node: any) => {
+    Object.values(messagesData as Record<string, unknown>).forEach((nodeUnknown) => {
+      const node = nodeUnknown as { id?: string; message?: { content?: { parts?: string[] }; author?: { role?: string }; create_time?: number } };
       if (node?.message?.content?.parts && node.message.content.parts.length > 0) {
         const content = node.message.content.parts.join('\n');
         if (content.trim()) {
@@ -219,13 +220,13 @@ export async function importChatGPTConversations(
       success: false,
       totalImported: finalResults.totalImported,
       totalErrors: finalResults.totalErrors + 1,
-      errors: [...finalResults.errors, error.message],
+      errors: [...finalResults.errors, error instanceof Error ? error.message : 'Unknown error'],
     };
   }
 }
 
 // Validate ChatGPT export file format
-export function validateChatGPTExport(jsonContent: string): {valid: boolean; error?: string; preview?: any} {
+export function validateChatGPTExport(jsonContent: string): {valid: boolean; error?: string; preview?: { conversationCount: number; firstTitle?: string; format: string }} {
   try {
     const data = JSON.parse(jsonContent);
     

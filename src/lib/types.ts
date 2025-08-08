@@ -35,8 +35,8 @@ export interface KnowledgeItem {
   emotions?: string[];
   sentiment_score?: number;
   topics?: string[];
-  entities?: Record<string, any>;
-  relationships?: Record<string, any>;
+  entities?: Record<string, unknown>;
+  relationships?: Record<string, unknown>;
   
   // Content analysis
   summary?: string;
@@ -47,12 +47,12 @@ export interface KnowledgeItem {
   // Temporal and contextual
   extracted_date?: Date;
   time_period?: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
   
   // Processing metadata
   processing_status: 'pending' | 'processing' | 'completed' | 'error';
   ai_confidence_score?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
 }
@@ -83,14 +83,14 @@ export interface Insight {
   description: string;
   confidence_score?: number;
   related_items?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   is_dismissed: boolean;
   created_at: Date;
   updated_at: Date;
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { searchKnowledgeItemsVector } from '@/lib/api/knowledge-items';
+import { query as dbQuery } from '@/lib/db';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -47,6 +48,18 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json(result, { status: 400 });
     }
+
+    // Log search history asynchronously (do not block response)
+    (async () => {
+      try {
+        await dbQuery(
+          'INSERT INTO search_history (user_id, query, results_count) VALUES ($1, $2, $3)',
+          [session.user.id, query, result.data?.items?.length || 0]
+        );
+      } catch (e) {
+        console.error('Failed to log search history:', e);
+      }
+    })();
 
     return NextResponse.json(result);
   } catch (error) {

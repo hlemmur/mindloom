@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { KnowledgeItem } from '@/lib/types';
-import { updateKnowledgeItem } from '@/lib/api/knowledge-items';
+import { updateKnowledgeItem, getKnowledgeItem } from '@/lib/api/knowledge-items';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -276,19 +276,12 @@ export async function batchProcessKnowledgeItems(
 
   for (const itemId of itemIds) {
     try {
-      // Get the item content
-      const itemResponse = await fetch(`/api/knowledge-items/${itemId}`, {
-        headers: {
-          'Authorization': `Bearer ${userId}`, // This would need proper auth handling
-        },
-      });
-
-      if (!itemResponse.ok) {
+      // Load the item directly from the database
+      const itemResult = await getKnowledgeItem(userId, itemId);
+      if (!itemResult.success || !itemResult.data) {
         throw new Error('Failed to fetch knowledge item');
       }
-
-      const itemData = await itemResponse.json();
-      const item: KnowledgeItem = itemData.data;
+      const item: KnowledgeItem = itemResult.data as unknown as KnowledgeItem;
 
       // Process the item
       const processResult = await processKnowledgeItemWithAI(
@@ -307,7 +300,7 @@ export async function batchProcessKnowledgeItems(
       }
 
       // Add a small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error) {
       results.failed++;

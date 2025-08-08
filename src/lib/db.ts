@@ -31,11 +31,16 @@ if (process.env.NODE_ENV === 'production') {
 export { pool };
 
 // Helper function to execute queries
-export async function query(text: string, params?: any[]): Promise<any> {
+export async function query<T = unknown>(text: string, params?: ReadonlyArray<string | number | boolean | null>): Promise<{ rows: T[]; rowCount: number }> {
   const client = await pool.connect();
   try {
-    const result = await client.query(text, params);
-    return result;
+    let result;
+    if (params && params.length > 0) {
+      result = await client.query<T>(text, params as ReadonlyArray<string | number | boolean | null>);
+    } else {
+      result = await client.query<T>(text);
+    }
+    return { rows: result.rows, rowCount: (result as unknown as { rowCount?: number }).rowCount ?? result.rows.length };
   } finally {
     client.release();
   }
@@ -72,7 +77,7 @@ export async function initializeDatabase(): Promise<void> {
       WHERE extname IN ('vector', 'uuid-ossp')
     `);
     
-    const installedExtensions = extensionCheck.rows.map((row: any) => row.extname);
+    const installedExtensions = extensionCheck.rows.map((row: { extname: string }) => row.extname);
     
     if (!installedExtensions.includes('vector')) {
       console.warn('⚠️  pgvector extension not found. Please install it manually.');

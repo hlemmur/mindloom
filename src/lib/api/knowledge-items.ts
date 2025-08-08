@@ -25,8 +25,8 @@ export async function getKnowledgeItems(
       sourceId,
     } = options;
 
-    let whereConditions = ['user_id = $1'];
-    let queryParams: any[] = [userId];
+    const whereConditions = ['user_id = $1'];
+    const queryParams: (string | number | string[] | null)[] = [userId];
     let paramIndex = 2;
 
     // Add search condition
@@ -196,7 +196,7 @@ export async function updateKnowledgeItem(
 ): Promise<ApiResponse<KnowledgeItem>> {
   try {
     const updateFields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
     let paramIndex = 1;
 
     // Build dynamic update query
@@ -303,8 +303,8 @@ export async function searchKnowledgeItemsVector(
       topics,
     } = options;
 
-    let whereConditions = ['user_id = $1'];
-    let queryParams: any[] = [userId];
+    const whereConditions = ['user_id = $1'];
+    const queryParams: (string | number | string[])[] = [userId];
     let paramIndex = 2;
 
     // Add category filter

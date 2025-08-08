@@ -74,7 +74,7 @@ export default function Home() {
             <CardContent>
               <CardDescription>
                 Vector-based search with semantic understanding finds relevant information even when 
-                you don't remember the exact words.
+                 you don&apos;t remember the exact words.
               </CardDescription>
             </CardContent>
           </Card>

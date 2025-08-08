@@ -1,6 +1,6 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -113,6 +113,9 @@ export default function Dashboard() {
               <span className="text-sm text-gray-600">
                 Welcome, {session?.user?.name || session?.user?.email}
               </span>
+              <Button variant="outline" onClick={() => signOut({ callbackUrl: '/' })}>
+                Logout
+              </Button>
               <Button variant="outline" onClick={() => router.push('/import')}>
                 Import Data
               </Button>

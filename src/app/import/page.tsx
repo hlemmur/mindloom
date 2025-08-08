@@ -68,7 +68,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                   <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Conversation analysis and categorization</li>
                     <li>Topic and entity extraction</li>
@@ -112,7 +112,7 @@ export default function ImportPage() {
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <strong>Supported:</strong> Markdown, TXT, Notion exports, Obsidian vaults
+                   <strong>Supported:</strong> Markdown, TXT, Notion exports, Obsidian vaults
                 </div>
               </div>
               <Button disabled className="w-full">
@@ -138,7 +138,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                   <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Contact and relationship mapping</li>
                     <li>Important email identification</li>
@@ -147,7 +147,7 @@ export default function ImportPage() {
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <strong>Supported:</strong> Gmail, Outlook, MBOX exports
+                   <strong>Supported:</strong> Gmail, Outlook, MBOX exports
                 </div>
               </div>
               <Button disabled className="w-full">
@@ -173,7 +173,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                   <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Health trend analysis</li>
                     <li>Mood and energy correlations</li>
@@ -182,7 +182,7 @@ export default function ImportPage() {
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <strong>Supported:</strong> Apple Health, Google Fit, fitness apps
+                   <strong>Supported:</strong> Apple Health, Google Fit, fitness apps
                 </div>
               </div>
               <Button disabled className="w-full">
@@ -208,7 +208,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                   <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Content theme analysis</li>
                     <li>Engagement pattern insights</li>
@@ -252,7 +252,7 @@ export default function ImportPage() {
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                  <strong>Features:</strong> REST APIs, webhooks, custom schemas
+                   <strong>Features:</strong> REST APIs, webhooks, custom schemas
                 </div>
               </div>
               <Button disabled className="w-full">
