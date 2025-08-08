@@ -10,6 +10,7 @@ import Link from 'next/link';
 import ImportProgressComponent from '@/components/ImportProgress';
 import ChunkedUpload from '@/components/ChunkedUpload';
 import LargeFileUpload from '@/components/LargeFileUpload';
+import FileSplitGuide from '@/components/FileSplitGuide';
 
 interface ImportResult {
   success: boolean;
@@ -24,6 +25,7 @@ interface ImportResult {
   };
   errors?: string[];
   message?: string;
+  errorCode?: string;
 }
 
 interface ImportProgress {
@@ -50,6 +52,7 @@ export default function ChatGPTImportPage() {
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [isPollingProgress, setIsPollingProgress] = useState(false);
   const [showChunkedUpload, setShowChunkedUpload] = useState(false);
+  const [showFileSplitGuide, setShowFileSplitGuide] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -155,37 +158,13 @@ export default function ChatGPTImportPage() {
   const handleImport = async () => {
     if (!file || !validationResult?.success) return;
 
-    // Proactive size check - choose best upload method based on file size
+    // Proactive size check - choose best upload method based on file size  
     const VERCEL_SAFE_LIMIT = 2 * 1024 * 1024; // 2MB
-    const LARGE_FILE_LIMIT = 8 * 1024 * 1024; // 8MB - use server processing for files this big
+    const VERCEL_HARD_LIMIT = 4 * 1024 * 1024; // 4MB - Vercel's actual limit
     
-    if (file.size > LARGE_FILE_LIMIT) {
-      console.log('[Import] Large file detected, using server-side processing');
-      // For very large files (>8MB), use server-side processing
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('sourceName', sourceName || 'Large File Import');
-
-        const response = await fetch('/api/import/large-file', {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-        setImportResult(result);
-
-        if (result.success && result.data?.progressId) {
-          console.log('[Import] Server-side import started, tracking progress');
-          setIsPollingProgress(true);
-        }
-      } catch (error) {
-        console.error('[Import] Server-side import failed:', error);
-        setImportResult({
-          success: false,
-          errors: [error instanceof Error ? error.message : 'Server-side import failed'],
-        });
-      }
+    if (file.size > VERCEL_HARD_LIMIT) {
+      console.log('[Import] File exceeds Vercel hard limit, showing file splitting guide');
+      setShowFileSplitGuide(true);
       setIsUploading(false);
       return;
     } else if (file.size > VERCEL_SAFE_LIMIT) {
@@ -213,8 +192,8 @@ export default function ChatGPTImportPage() {
 
       // Check for Vercel payload size limit (413 error)
       if (response.status === 413) {
-        console.log('[Import] 413 Payload too large - switching to chunked upload');
-        setShowChunkedUpload(true);
+        console.log('[Import] 413 Payload too large - showing file splitting guide');
+        setShowFileSplitGuide(true);
         setIsUploading(false);
         return;
       }
@@ -277,7 +256,16 @@ export default function ChatGPTImportPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {showChunkedUpload && file ? (
+        {showFileSplitGuide && file ? (
+          <FileSplitGuide
+            file={file}
+            onClose={() => {
+              setShowFileSplitGuide(false);
+              setFile(null);
+              setValidationResult(null);
+            }}
+          />
+        ) : showChunkedUpload && file ? (
           <ChunkedUpload
             file={file}
             sourceName={sourceName}
@@ -526,6 +514,8 @@ export default function ChatGPTImportPage() {
                           setFile(null);
                           setValidationResult(null);
                           setIsPollingProgress(false);
+                          setShowChunkedUpload(false);
+                          setShowFileSplitGuide(false);
                         }}>
                           Try Again
                         </Button>

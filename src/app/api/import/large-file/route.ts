@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   console.log('[Large File Import] Starting large file import...');
+  console.log('[Large File Import] Content-Length header:', request.headers.get('content-length'));
+  console.log('[Large File Import] Content-Type header:', request.headers.get('content-type'));
   
   try {
     const session = await getServerSession(authOptions);
@@ -20,14 +22,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    const sourceName = (formData.get('sourceName') as string) || 'Large File Import';
-
-    if (!file) {
+    // Try to read formData with error handling for large payloads
+    let formData: FormData;
+    let file: File;
+    let sourceName: string;
+    
+    try {
+      console.log('[Large File Import] Attempting to read formData...');
+      formData = await request.formData();
+      console.log('[Large File Import] FormData read successfully');
+      
+      file = formData.get('file') as File;
+      sourceName = (formData.get('sourceName') as string) || 'Large File Import';
+      
+      if (!file) {
+        return NextResponse.json(
+          { success: false, error: 'No file provided' },
+          { status: 400 }
+        );
+      }
+      
+      console.log('[Large File Import] File extracted:', file.name, file.size);
+      
+    } catch (formDataError) {
+      console.error('[Large File Import] FormData parsing failed:', formDataError);
+      
+      // If formData parsing fails due to size, return helpful error
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
-        { status: 400 }
+        { 
+          success: false, 
+          error: 'File too large for direct upload. Please try splitting your ChatGPT export into smaller files, or contact support for alternative import methods.',
+          errorCode: 'PAYLOAD_TOO_LARGE'
+        },
+        { status: 413 }
       );
     }
 
