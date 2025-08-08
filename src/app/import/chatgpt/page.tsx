@@ -7,17 +7,33 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import Link from 'next/link';
+import ImportProgressComponent from '@/components/ImportProgress';
 
 interface ImportResult {
   success: boolean;
+  streaming?: boolean;
   data?: {
     sourceId: string;
-    imported: number;
-    errors: number;
+    imported?: number;
+    errors?: number;
     preview?: { conversationCount?: number };
+    progressId?: string;
+    estimatedConversations?: number;
   };
   errors?: string[];
   message?: string;
+}
+
+interface ImportProgress {
+  id: string;
+  status: 'parsing' | 'importing' | 'completed' | 'error';
+  stage: string;
+  progress: number;
+  totalConversations: number;
+  processedConversations: number;
+  importedItems: number;
+  errors: string[];
+  estimatedTimeRemaining?: number;
 }
 
 export default function ChatGPTImportPage() {
@@ -29,12 +45,59 @@ export default function ChatGPTImportPage() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<{ success: boolean; data?: { conversationCount: number; firstTitle?: string; format: string }; error?: string } | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [isPollingProgress, setIsPollingProgress] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
     }
   }, [status, router]);
+
+  // Progress polling effect
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+    
+    if (isPollingProgress && importResult?.data?.progressId) {
+      const pollProgress = async () => {
+        try {
+          const response = await fetch(`/api/import/progress/${importResult.data!.progressId}`);
+          const result = await response.json();
+          
+          if (result.success) {
+            setImportProgress(result.data);
+            
+            // Stop polling when completed or failed
+            if (result.data.status === 'completed' || result.data.status === 'error') {
+              setIsPollingProgress(false);
+              setIsUploading(false);
+              
+              // Redirect to dashboard after successful completion
+              if (result.data.status === 'completed') {
+                setTimeout(() => {
+                  router.push('/dashboard');
+                }, 3000);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Progress polling error:', error);
+        }
+      };
+      
+      // Poll every 1 second
+      pollInterval = setInterval(pollProgress, 1000);
+      
+      // Poll immediately
+      pollProgress();
+    }
+    
+    return () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [isPollingProgress, importResult?.data?.progressId, router]);
 
   if (status === 'loading') {
     return (
@@ -90,6 +153,8 @@ export default function ChatGPTImportPage() {
     if (!file || !validationResult?.success) return;
 
     setIsUploading(true);
+    setImportProgress(null);
+    
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -104,9 +169,19 @@ export default function ChatGPTImportPage() {
       setImportResult(result);
 
       if (result.success) {
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 3000);
+        if (result.streaming && result.data?.progressId) {
+          // Large file: Start progress polling
+          console.log('Starting progress tracking for large file import');
+          setIsPollingProgress(true);
+        } else {
+          // Small file: Import completed immediately
+          setIsUploading(false);
+          setTimeout(() => {
+            router.push('/dashboard');
+          }, 3000);
+        }
+      } else {
+        setIsUploading(false);
       }
     } catch (error) {
       console.error('Import error:', error);
@@ -114,7 +189,6 @@ export default function ChatGPTImportPage() {
         success: false,
         errors: ['Failed to import data'],
       });
-    } finally {
       setIsUploading(false);
     }
   };
@@ -291,75 +365,115 @@ export default function ChatGPTImportPage() {
             </Card>
           </div>
         ) : (
-          /* Import Results */
-          <Card>
-            <CardHeader>
-              <CardTitle className={importResult.success ? 'text-green-700' : 'text-red-700'}>
-                {importResult.success ? '🎉 Import Completed!' : '❌ Import Failed'}
-              </CardTitle>
-              <CardDescription>
-                {importResult.message}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {importResult.success ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{importResult.data?.imported || 0}</div>
-                      <div className="text-sm text-green-800">Items Imported</div>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600">{importResult.data?.preview?.conversationCount || 0}</div>
-                      <div className="text-sm text-blue-800">Conversations Processed</div>
-                    </div>
-                  </div>
-                  
-                  {importResult.data?.errors && importResult.data.errors > 0 && (
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-yellow-800">
-                        {importResult.data.errors} items had processing errors but were still imported
-                      </p>
-                    </div>
-                  )}
+          /* Import Results - Handle both streaming and non-streaming imports */
+          <div className="space-y-6">
+            {/* Show progress component for streaming imports */}
+            {importResult.streaming && importProgress && (
+              <ImportProgressComponent
+                progress={importProgress}
+                fileName={file?.name || 'Unknown file'}
+              />
+            )}
 
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600 mb-4">
-                      Redirecting to dashboard in a few seconds...
-                    </p>
-                    <Button asChild>
-                      <Link href="/dashboard">Go to Dashboard Now</Link>
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {importResult.errors && importResult.errors.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="font-medium text-gray-900">Errors encountered:</p>
-                      <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
-                        {importResult.errors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
+            {/* Show traditional results for non-streaming imports or streaming completion */}
+            {(!importResult.streaming || (importProgress?.status === 'completed' || importProgress?.status === 'error')) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className={importResult.success ? 'text-green-700' : 'text-red-700'}>
+                    {importResult.success ? 
+                      (importResult.streaming ? '🎉 Large File Import Complete!' : '🎉 Import Completed!') : 
+                      '❌ Import Failed'}
+                  </CardTitle>
+                  <CardDescription>
+                    {importResult.message}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {importResult.success ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600">
+                            {importProgress?.importedItems || importResult.data?.imported || 0}
+                          </div>
+                          <div className="text-sm text-green-800">Items Imported</div>
+                        </div>
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {importProgress?.totalConversations || importResult.data?.preview?.conversationCount || 0}
+                          </div>
+                          <div className="text-sm text-blue-800">Conversations Processed</div>
+                        </div>
+                      </div>
+                      
+                      {((importProgress?.errors && importProgress.errors.length > 0) || 
+                        (importResult.data?.errors && importResult.data.errors > 0)) && (
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            {importProgress?.errors.length || importResult.data?.errors || 0} items had processing errors but were still imported
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="text-center">
+                        {!importResult.streaming && (
+                          <p className="text-sm text-gray-600 mb-4">
+                            Redirecting to dashboard in a few seconds...
+                          </p>
+                        )}
+                        <Button asChild>
+                          <Link href="/dashboard">Go to Dashboard Now</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {((importResult.errors && importResult.errors.length > 0) || 
+                        (importProgress?.errors && importProgress.errors.length > 0)) && (
+                        <div className="space-y-2">
+                          <p className="font-medium text-gray-900">Errors encountered:</p>
+                          <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                            {(importResult.errors || importProgress?.errors || []).map((error, index) => (
+                              <li key={index}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Button onClick={() => {
+                          setImportResult(null);
+                          setImportProgress(null);
+                          setFile(null);
+                          setValidationResult(null);
+                          setIsPollingProgress(false);
+                        }}>
+                          Try Again
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link href="/dashboard">Return to Dashboard</Link>
+                        </Button>
+                      </div>
                     </div>
                   )}
-                  <div className="flex gap-2">
-                    <Button onClick={() => {
-                      setImportResult(null);
-                      setFile(null);
-                      setValidationResult(null);
-                    }}>
-                      Try Again
-                    </Button>
-                    <Button asChild variant="outline">
-                      <Link href="/dashboard">Return to Dashboard</Link>
-                    </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Loading state for streaming imports without progress yet */}
+            {importResult.streaming && !importProgress && (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Starting Large File Import...</h3>
+                    <p className="text-gray-600">
+                      Your large file is being processed. This may take a few moments to begin.
+                    </p>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </div>

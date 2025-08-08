@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createDataSource, updateDataSourceSyncStatus } from '@/lib/api/data-sources';
 import { importChatGPTConversations, validateChatGPTExport } from '@/lib/chatgpt-import';
+import { createImportJob, streamChatGPTImport } from '@/lib/streaming-import';
 
 // Configure route for large file uploads
 export const maxDuration = 300; // 5 minutes
@@ -85,9 +86,10 @@ export async function POST(request: NextRequest) {
 
     console.log('[ChatGPT Import API] File received:', file.name, 'Size:', file.size, 'bytes');
 
-    // Check file size and suggest chunking for very large files
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-    const WARN_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    // Handle large files with streaming import
+    const STREAMING_THRESHOLD = 5 * 1024 * 1024; // 5MB - use streaming for files larger than this
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB - absolute maximum
+    const isLargeFile = file.size > STREAMING_THRESHOLD;
     
     if (file.size > MAX_FILE_SIZE) {
       console.error('[ChatGPT Import API] File too large:', file.size, 'bytes');
@@ -95,15 +97,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           success: false, 
-          error: `File size (${sizeMB}MB) exceeds maximum limit of 10MB. For files larger than 10MB, please split your ChatGPT export into smaller chunks of conversations and import them separately. You can also use the streaming JSON import mode by sending conversation arrays in smaller batches.`,
-          suggestion: sizeMB > 50 ? 'CHUNK_REQUIRED' : 'CONSIDER_CHUNKING'
+          error: `File size (${sizeMB}MB) exceeds maximum limit of 50MB. Please contact support for files larger than 50MB.`
         },
         { status: 413 }
       );
     }
     
-    if (file.size > WARN_FILE_SIZE) {
-      console.warn('[ChatGPT Import API] Large file detected:', Math.round(file.size / 1024 / 1024), 'MB');
+    if (isLargeFile) {
+      console.log('[ChatGPT Import API] Large file detected, using streaming import:', Math.round(file.size / 1024 / 1024), 'MB');
     }
 
     if (!file.name.toLowerCase().endsWith('.json')) {
@@ -157,29 +158,64 @@ export async function POST(request: NextRequest) {
 
     const sourceId = dataSourceResult.data!.id;
 
-    // Start the import process
-    console.log('[ChatGPT Import API] Starting import process...');
-    const importResult = await importChatGPTConversations(
-      session.user.id,
-      sourceId,
-      content
-    );
-    console.log('[ChatGPT Import API] Import result:', importResult);
+    // Choose import method based on file size
+    if (isLargeFile) {
+      // Large files: Use streaming import with progress tracking
+      console.log('[ChatGPT Import API] Starting streaming import for large file...');
+      
+      const progressId = crypto.randomUUID();
+      const progressJob = createImportJob(progressId);
+      
+      // Start streaming import in background (don't await)
+      streamChatGPTImport(session.user.id, sourceId, content, progressId)
+        .then(async (result) => {
+          // Update data source sync status when done
+          const syncStatus = result.success ? 'completed' : 'error';
+          await updateDataSourceSyncStatus(session.user.id, sourceId, syncStatus);
+        })
+        .catch((error) => {
+          console.error('Streaming import failed:', error);
+          updateDataSourceSyncStatus(session.user.id, sourceId, 'error');
+        });
 
-    // Return results
-    return NextResponse.json({
-      success: importResult.success,
-      data: {
+      // Return progress ID immediately for frontend to track
+      return NextResponse.json({
+        success: true,
+        streaming: true,
+        data: {
+          sourceId,
+          progressId,
+          estimatedConversations: validation.preview?.conversationCount || 0,
+        },
+        message: 'Large file upload started. Import is processing in the background.',
+      });
+      
+    } else {
+      // Small files: Use original synchronous import
+      console.log('[ChatGPT Import API] Starting synchronous import for small file...');
+      const importResult = await importChatGPTConversations(
+        session.user.id,
         sourceId,
-        imported: importResult.totalImported,
-        errors: importResult.totalErrors,
-        preview: validation.preview,
-      },
-      errors: importResult.errors.length > 0 ? importResult.errors : undefined,
-      message: `Successfully imported ${importResult.totalImported} items${
-        importResult.totalErrors > 0 ? ` with ${importResult.totalErrors} errors` : ''
-      }`,
-    });
+        content
+      );
+      console.log('[ChatGPT Import API] Import result:', importResult);
+
+      // Return results immediately
+      return NextResponse.json({
+        success: importResult.success,
+        streaming: false,
+        data: {
+          sourceId,
+          imported: importResult.totalImported,
+          errors: importResult.totalErrors,
+          preview: validation.preview,
+        },
+        errors: importResult.errors.length > 0 ? importResult.errors : undefined,
+        message: `Successfully imported ${importResult.totalImported} items${
+          importResult.totalErrors > 0 ? ` with ${importResult.totalErrors} errors` : ''
+        }`,
+      });
+    }
 
   } catch (error) {
     console.error('ChatGPT import API error:', error);
