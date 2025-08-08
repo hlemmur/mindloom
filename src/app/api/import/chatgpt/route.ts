@@ -78,14 +78,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!file.name.endsWith('.json')) {
+    if (!file.name.toLowerCase().endsWith('.json')) {
       return NextResponse.json(
         { success: false, error: 'File must be a JSON file' },
         { status: 400 }
       );
     }
 
-    const content = await file.text();
+    let content = await file.text();
+    content = content.trim().replace(/^\uFEFF/, '');
 
     // Validate the export format
     const validation = validateChatGPTExport(content);

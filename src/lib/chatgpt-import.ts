@@ -6,7 +6,8 @@ import { processKnowledgeItemWithAI } from '@/lib/ai-processing';
 // Parse ChatGPT export JSON file
 export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
   try {
-    const data = JSON.parse(jsonContent);
+    const sanitized = jsonContent.trim().replace(/^\uFEFF/, '');
+    const data = JSON.parse(sanitized);
     type LooseConversation = {
       id?: string;
       conversation_id?: string;
@@ -314,7 +315,8 @@ export async function importChatGPTConversations(
 // Validate ChatGPT export file format
 export function validateChatGPTExport(jsonContent: string): {valid: boolean; error?: string; preview?: { conversationCount: number; firstTitle?: string; format: string }} {
   try {
-    const data = JSON.parse(jsonContent);
+    const sanitized = jsonContent.trim().replace(/^\uFEFF/, '');
+    const data = JSON.parse(sanitized);
     
     // Check for expected structure
     if (Array.isArray(data)) {
@@ -337,7 +339,7 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'multiple_conversations',
         },
       };
-    } else if (data.mapping || data.messages) {
+    } else if ((data as any).mapping || (data as any).messages) {
       return {
         valid: true,
         preview: {
@@ -346,7 +348,7 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'single_conversation',
         },
       };
-    } else if (data.conversations && Array.isArray(data.conversations)) {
+    } else if ((data as any).conversations && Array.isArray((data as any).conversations)) {
       const firstConv = data.conversations[0] || {};
       return {
         valid: true,
@@ -356,7 +358,7 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'root_conversations_array',
         },
       };
-    } else if (data.items && Array.isArray(data.items)) {
+    } else if ((data as any).items && Array.isArray((data as any).items)) {
       const firstItem = data.items[0] || {};
       return {
         valid: true,
