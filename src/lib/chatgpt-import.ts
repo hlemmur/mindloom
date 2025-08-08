@@ -5,9 +5,23 @@ import { processKnowledgeItemWithAI } from '@/lib/ai-processing';
 
 // Parse ChatGPT export JSON file
 export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
+  console.log('[parseChatGPTExport] Starting parse...');
+  console.log('[parseChatGPTExport] Input content length:', jsonContent.length);
+  
   try {
     const sanitized = jsonContent.trim().replace(/^\uFEFF/, '');
-    const data = JSON.parse(sanitized);
+    console.log('[parseChatGPTExport] After sanitization length:', sanitized.length);
+    
+    let data;
+    try {
+      data = JSON.parse(sanitized);
+      console.log('[parseChatGPTExport] JSON parse successful');
+      console.log('[parseChatGPTExport] Data type:', typeof data);
+      console.log('[parseChatGPTExport] Is array:', Array.isArray(data));
+    } catch (parseError) {
+      console.error('[parseChatGPTExport] JSON parse error:', parseError);
+      throw new Error(`Invalid JSON format: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+    }
     type LooseConversation = {
       id?: string;
       conversation_id?: string;
@@ -35,13 +49,19 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
 
     // Handle different possible formats from ChatGPT export
     if (Array.isArray(data)) {
-      return (data as LooseConversation[]).map((conversation) => ({
-        id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
-        title: conversation.title || 'Untitled Conversation',
-        messages: parseMessages(conversation.mapping || conversation.messages || []),
-        created_at: toIso(conversation.create_time || conversation.created_at),
-        updated_at: toIso(conversation.update_time || conversation.updated_at),
-      }));
+      console.log('[parseChatGPTExport] Processing array format, length:', data.length);
+      const conversations = (data as LooseConversation[]).map((conversation, index) => {
+        console.log(`[parseChatGPTExport] Processing conversation ${index + 1}/${data.length}:`, conversation.title || 'Untitled');
+        return {
+          id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
+          title: conversation.title || 'Untitled Conversation',
+          messages: parseMessages(conversation.mapping || conversation.messages || []),
+          created_at: toIso(conversation.create_time || conversation.created_at),
+          updated_at: toIso(conversation.update_time || conversation.updated_at),
+        };
+      });
+      console.log('[parseChatGPTExport] Successfully parsed', conversations.length, 'conversations');
+      return conversations;
     } else if (data.conversations && Array.isArray(data.conversations)) {
       // Root has `conversations` array
       return (data.conversations as LooseConversation[]).map((conversation) => ({
@@ -73,8 +93,8 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
       throw new Error('Unrecognized ChatGPT export format');
     }
   } catch (error) {
-    console.error('Error parsing ChatGPT export:', error);
-    throw new Error('Invalid ChatGPT export file format');
+    console.error('[parseChatGPTExport] Error parsing ChatGPT export:', error);
+    throw new Error(`Invalid ChatGPT export file format: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -260,6 +280,11 @@ export async function importChatGPTConversations(
   sourceId: string,
   jsonContent: string
 ): Promise<{success: boolean; totalImported: number; totalErrors: number; errors: string[]}> {
+  console.log('[importChatGPTConversations] Starting import process...');
+  console.log('[importChatGPTConversations] userId:', userId);
+  console.log('[importChatGPTConversations] sourceId:', sourceId);
+  console.log('[importChatGPTConversations] jsonContent length:', jsonContent.length);
+  
   const finalResults = {
     success: true,
     totalImported: 0,
@@ -269,10 +294,13 @@ export async function importChatGPTConversations(
 
   try {
     // Update sync status to syncing
+    console.log('[importChatGPTConversations] Updating sync status to syncing...');
     await updateDataSourceSyncStatus(userId, sourceId, 'syncing');
 
     // Parse the ChatGPT export
+    console.log('[importChatGPTConversations] Starting to parse ChatGPT export...');
     const conversations = parseChatGPTExport(jsonContent);
+    console.log('[importChatGPTConversations] Parsed', conversations.length, 'conversations');
     
     if (conversations.length === 0) {
       throw new Error('No conversations found in the export file');
@@ -314,24 +342,75 @@ export async function importChatGPTConversations(
 
 // Validate ChatGPT export file format
 export function validateChatGPTExport(jsonContent: string): {valid: boolean; error?: string; preview?: { conversationCount: number; firstTitle?: string; format: string }} {
+  console.log('[validateChatGPTExport] Starting validation...');
+  console.log('[validateChatGPTExport] Input content length:', jsonContent.length);
+  console.log('[validateChatGPTExport] First 200 chars:', JSON.stringify(jsonContent.substring(0, 200)));
+  
   try {
     const sanitized = jsonContent.trim().replace(/^\uFEFF/, '');
-    const data = JSON.parse(sanitized);
+    console.log('[validateChatGPTExport] After sanitization length:', sanitized.length);
+    console.log('[validateChatGPTExport] Last 200 chars:', JSON.stringify(sanitized.substring(sanitized.length - 200)));
+    
+    let data;
+    try {
+      data = JSON.parse(sanitized);
+      console.log('[validateChatGPTExport] JSON parse successful');
+      console.log('[validateChatGPTExport] Data type:', typeof data);
+      console.log('[validateChatGPTExport] Is array:', Array.isArray(data));
+    } catch (parseError) {
+      console.error('[validateChatGPTExport] JSON parse error:', parseError);
+      const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown parse error';
+      
+      // Check if it might be a truncated file
+      if (errorMsg.includes('Unexpected end of JSON input') || errorMsg.includes('Expected')) {
+        return { 
+          valid: false, 
+          error: `Invalid JSON format - file appears to be truncated or incomplete. ${errorMsg}. Please ensure you have the complete ChatGPT export file.`
+        };
+      }
+      
+      return { 
+        valid: false, 
+        error: `Invalid JSON format: ${errorMsg}`
+      };
+    }
+    
+    if (typeof data === 'object' && !Array.isArray(data) && data !== null) {
+      console.log('[validateChatGPTExport] Object keys:', Object.keys(data));
+    }
     
     // Check for expected structure
     if (Array.isArray(data)) {
+      console.log('[validateChatGPTExport] Processing array format, length:', data.length);
       if (data.length === 0) {
+        console.log('[validateChatGPTExport] Empty array detected');
         return { valid: false, error: 'Export file contains no conversations' };
       }
       
       const firstConv = data[0];
-      // Be lenient: accept if common fields exist
-      const isLikelyConversation = !!(firstConv?.mapping || firstConv?.messages || firstConv?.title || firstConv?.create_time || firstConv?.update_time);
-      if (!isLikelyConversation) {
-        return { valid: false, error: 'Invalid conversation format in export file' };
+      console.log('[validateChatGPTExport] First conversation type:', typeof firstConv);
+      if (typeof firstConv === 'object' && firstConv !== null) {
+        console.log('[validateChatGPTExport] First conversation keys:', Object.keys(firstConv));
+        console.log('[validateChatGPTExport] First conversation fields check:');
+        console.log('  - title:', firstConv?.title);
+        console.log('  - mapping exists:', !!firstConv?.mapping);
+        console.log('  - messages exists:', !!firstConv?.messages);
+        console.log('  - create_time exists:', !!firstConv?.create_time);
+        console.log('  - update_time exists:', !!firstConv?.update_time);
       }
       
-      return {
+      // Be lenient: accept if common fields exist
+      const isLikelyConversation = !!(firstConv?.mapping || firstConv?.messages || firstConv?.title || firstConv?.create_time || firstConv?.update_time);
+      console.log('[validateChatGPTExport] isLikelyConversation:', isLikelyConversation);
+      
+      if (!isLikelyConversation) {
+        return { 
+          valid: false, 
+          error: `Invalid conversation format in export file. Expected ChatGPT conversation structure but found: ${JSON.stringify(firstConv, null, 2).substring(0, 500)}` 
+        };
+      }
+      
+      const result = {
         valid: true,
         preview: {
           conversationCount: data.length,
@@ -339,8 +418,11 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'multiple_conversations',
         },
       };
+      console.log('[validateChatGPTExport] Array validation successful:', result);
+      return result;
     } else if ((data as any).mapping || (data as any).messages) {
-      return {
+      console.log('[validateChatGPTExport] Processing single conversation format');
+      const result = {
         valid: true,
         preview: {
           conversationCount: 1,
@@ -348,9 +430,12 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'single_conversation',
         },
       };
+      console.log('[validateChatGPTExport] Single conversation validation successful:', result);
+      return result;
     } else if ((data as any).conversations && Array.isArray((data as any).conversations)) {
+      console.log('[validateChatGPTExport] Processing root conversations array format');
       const firstConv = data.conversations[0] || {};
-      return {
+      const result = {
         valid: true,
         preview: {
           conversationCount: data.conversations.length,
@@ -358,9 +443,12 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'root_conversations_array',
         },
       };
+      console.log('[validateChatGPTExport] Root conversations validation successful:', result);
+      return result;
     } else if ((data as any).items && Array.isArray((data as any).items)) {
+      console.log('[validateChatGPTExport] Processing root items array format');
       const firstItem = data.items[0] || {};
-      return {
+      const result = {
         valid: true,
         preview: {
           conversationCount: data.items.length,
@@ -368,10 +456,21 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           format: 'root_items_array',
         },
       };
+      console.log('[validateChatGPTExport] Root items validation successful:', result);
+      return result;
     } else {
-      return { valid: false, error: 'Unrecognized ChatGPT export format' };
+      console.log('[validateChatGPTExport] Unrecognized format');
+      console.log('[validateChatGPTExport] Data structure:', JSON.stringify(data, null, 2).substring(0, 1000));
+      return { 
+        valid: false, 
+        error: `Unrecognized ChatGPT export format. Expected array of conversations or object with 'mapping'/'messages' fields. Found: ${typeof data === 'object' ? Object.keys(data).join(', ') : typeof data}` 
+      };
     }
   } catch (error) {
-    return { valid: false, error: 'Invalid JSON format' };
+    console.error('[validateChatGPTExport] Unexpected error:', error);
+    return { 
+      valid: false, 
+      error: `Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
   }
 }

@@ -89,8 +89,11 @@ export async function POST(request: NextRequest) {
     content = content.trim().replace(/^\uFEFF/, '');
 
     // Validate the export format
+    console.log('[ChatGPT Import API] Starting validation...');
     const validation = validateChatGPTExport(content);
+    console.log('[ChatGPT Import API] Validation result:', validation);
     if (!validation.valid) {
+      console.error('[ChatGPT Import API] Validation failed:', validation.error);
       return NextResponse.json(
         { success: false, error: validation.error },
         { status: 400 }
@@ -114,11 +117,13 @@ export async function POST(request: NextRequest) {
     const sourceId = dataSourceResult.data!.id;
 
     // Start the import process
+    console.log('[ChatGPT Import API] Starting import process...');
     const importResult = await importChatGPTConversations(
       session.user.id,
       sourceId,
       content
     );
+    console.log('[ChatGPT Import API] Import result:', importResult);
 
     // Return results
     return NextResponse.json({
