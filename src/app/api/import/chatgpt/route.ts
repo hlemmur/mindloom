@@ -4,6 +4,10 @@ import { authOptions } from '@/lib/auth';
 import { createDataSource, updateDataSourceSyncStatus } from '@/lib/api/data-sources';
 import { importChatGPTConversations, validateChatGPTExport } from '@/lib/chatgpt-import';
 
+// Configure route for large file uploads
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -72,21 +76,47 @@ export async function POST(request: NextRequest) {
     const sourceName = (formData.get('sourceName') as string) || 'ChatGPT Import';
 
     if (!file) {
+      console.error('[ChatGPT Import API] No file provided');
       return NextResponse.json(
         { success: false, error: 'No file provided' },
         { status: 400 }
       );
     }
 
+    console.log('[ChatGPT Import API] File received:', file.name, 'Size:', file.size, 'bytes');
+
+    // Check file size (10MB limit)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      console.error('[ChatGPT Import API] File too large:', file.size, 'bytes');
+      return NextResponse.json(
+        { success: false, error: `File size (${Math.round(file.size / 1024 / 1024)}MB) exceeds maximum limit of 10MB` },
+        { status: 413 }
+      );
+    }
+
     if (!file.name.toLowerCase().endsWith('.json')) {
+      console.error('[ChatGPT Import API] Invalid file type:', file.name);
       return NextResponse.json(
         { success: false, error: 'File must be a JSON file' },
         { status: 400 }
       );
     }
 
-    let content = await file.text();
-    content = content.trim().replace(/^\uFEFF/, '');
+    let content: string;
+    try {
+      console.log('[ChatGPT Import API] Reading file content...');
+      content = await file.text();
+      console.log('[ChatGPT Import API] File content read successfully, length:', content.length);
+      content = content.trim().replace(/^\uFEFF/, '');
+      console.log('[ChatGPT Import API] After sanitization, length:', content.length);
+    } catch (error) {
+      console.error('[ChatGPT Import API] Error reading file content:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to read file content. File may be corrupted or too large.' },
+        { status: 400 }
+      );
+    }
 
     // Validate the export format
     console.log('[ChatGPT Import API] Starting validation...');

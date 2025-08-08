@@ -3,6 +3,11 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "npm install --legacy-peer-deps",
+  "functions": {
+    "src/app/api/import/chatgpt/route.ts": {
+      "maxDuration": 300
+    }
+  },
   "env": {
     "NEXTAUTH_URL": "https://mindloom.vercel.app",
     "NODE_ENV": "production"
