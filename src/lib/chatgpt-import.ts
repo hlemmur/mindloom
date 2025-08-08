@@ -19,14 +19,27 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
       updated_at?: string;
     };
     
+    const toIso = (value?: number | string): string => {
+      if (typeof value === 'number') {
+        // Heuristic: seconds vs milliseconds
+        const ms = value < 1e12 ? value * 1000 : value;
+        return new Date(ms).toISOString();
+      }
+      if (typeof value === 'string') {
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+      }
+      return new Date().toISOString();
+    };
+
     // Handle different possible formats from ChatGPT export
     if (Array.isArray(data)) {
       return (data as LooseConversation[]).map((conversation) => ({
         id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
         title: conversation.title || 'Untitled Conversation',
         messages: parseMessages(conversation.mapping || conversation.messages || []),
-        created_at: conversation.create_time || conversation.created_at || new Date().toISOString(),
-        updated_at: conversation.update_time || conversation.updated_at || new Date().toISOString(),
+        created_at: toIso(conversation.create_time || conversation.created_at),
+        updated_at: toIso(conversation.update_time || conversation.updated_at),
       }));
     } else if (data.conversations && Array.isArray(data.conversations)) {
       // Root has `conversations` array
@@ -34,8 +47,8 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
         id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
         title: conversation.title || 'Untitled Conversation',
         messages: parseMessages(conversation.mapping || conversation.messages || []),
-        created_at: conversation.create_time || conversation.created_at || new Date().toISOString(),
-        updated_at: conversation.update_time || conversation.updated_at || new Date().toISOString(),
+        created_at: toIso(conversation.create_time || conversation.created_at),
+        updated_at: toIso(conversation.update_time || conversation.updated_at),
       }));
     } else if (data.items && Array.isArray(data.items)) {
       // Root has `items` array
@@ -43,8 +56,8 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
         id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
         title: conversation.title || 'Untitled Conversation',
         messages: parseMessages(conversation.mapping || conversation.messages || []),
-        created_at: conversation.create_time || conversation.created_at || new Date().toISOString(),
-        updated_at: conversation.update_time || conversation.updated_at || new Date().toISOString(),
+        created_at: toIso(conversation.create_time || conversation.created_at),
+        updated_at: toIso(conversation.update_time || conversation.updated_at),
       }));
     } else if (data.mapping) {
       // Single conversation format
@@ -52,8 +65,8 @@ export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
         id: data.conversation_id || crypto.randomUUID(),
         title: data.title || 'Untitled Conversation',
         messages: parseMessages(data.mapping),
-        created_at: data.create_time || new Date().toISOString(),
-        updated_at: data.update_time || new Date().toISOString(),
+        created_at: toIso((data as any).create_time),
+        updated_at: toIso((data as any).update_time),
       }];
     } else {
       throw new Error('Unrecognized ChatGPT export format');
@@ -213,7 +226,7 @@ export async function convertConversationToKnowledgeItems(
 
   } catch (error) {
     console.error('Error converting conversation:', error);
-    results.errors.push(`Error processing conversation "${conversation.title}": ${error.message}`);
+    results.errors.push(`Error processing conversation "${conversation.title}": ${error instanceof Error ? error.message : 'Unknown error'}`);
     results.success = false;
   }
 

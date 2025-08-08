@@ -1,0 +1,30 @@
+[
+  {
+    "id": "conv_1",
+    "title": "Sample Conversation",
+    "create_time": 1710000000,
+    "update_time": 1710003600,
+    "mapping": {
+      "node1": {
+        "id": "node1",
+        "message": {
+          "author": { "role": "user" },
+          "content": { "content_type": "text", "parts": ["Hello, how are you?"] },
+          "create_time": 1710000000
+        },
+        "children": ["node2"],
+        "parent": null
+      },
+      "node2": {
+        "id": "node2",
+        "message": {
+          "author": { "role": "assistant" },
+          "content": { "content_type": "text", "parts": ["I'm good! Here's a summary: ..."] },
+          "create_time": 1710000100
+        },
+        "children": [],
+        "parent": "node1"
+      }
+    }
+  }
+]
