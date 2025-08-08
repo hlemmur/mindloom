@@ -10,10 +10,16 @@ export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  console.log('[ChatGPT Import API] ========== NEW IMPORT REQUEST ==========');
+  console.log('[ChatGPT Import API] Timestamp:', new Date().toISOString());
+  console.log('[ChatGPT Import API] Request headers:', Object.fromEntries(request.headers.entries()));
+  
   try {
     const session = await getServerSession(authOptions);
+    console.log('[ChatGPT Import API] Session check:', session ? 'authenticated' : 'not authenticated');
 
     if (!session?.user?.id) {
+      console.error('[ChatGPT Import API] Authentication failed');
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
@@ -21,9 +27,11 @@ export async function POST(request: NextRequest) {
     }
 
     const contentType = request.headers.get('content-type') || '';
+    console.log('[ChatGPT Import API] Content-Type:', contentType);
 
     // JSON streaming mode (chunked import)
     if (contentType.includes('application/json')) {
+      console.log('[ChatGPT Import API] Using JSON streaming mode');
       const { conversations, sourceName, sourceId } = await request.json();
       if (!Array.isArray(conversations) || conversations.length === 0) {
         return NextResponse.json(
@@ -72,6 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Multipart upload mode (single file)
+    console.log('[ChatGPT Import API] Using multipart upload mode');
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const sourceName = (formData.get('sourceName') as string) || 'ChatGPT Import';
@@ -118,14 +127,34 @@ export async function POST(request: NextRequest) {
     let content: string;
     try {
       console.log('[ChatGPT Import API] Reading file content...');
-      content = await file.text();
+      console.log('[ChatGPT Import API] File size:', file.size, 'bytes');
+      console.log('[ChatGPT Import API] File type:', file.type);
+      console.log('[ChatGPT Import API] File name:', file.name);
+      
+      // Try to read the file with a timeout for large files
+      const fileReadPromise = file.text();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('File read timeout after 30 seconds')), 30000);
+      });
+      
+      content = await Promise.race([fileReadPromise, timeoutPromise]);
       console.log('[ChatGPT Import API] File content read successfully, length:', content.length);
+      console.log('[ChatGPT Import API] Content starts with:', content.substring(0, 100));
+      
       content = content.trim().replace(/^\uFEFF/, '');
       console.log('[ChatGPT Import API] After sanitization, length:', content.length);
     } catch (error) {
       console.error('[ChatGPT Import API] Error reading file content:', error);
+      console.error('[ChatGPT Import API] Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       return NextResponse.json(
-        { success: false, error: 'Failed to read file content. File may be corrupted or too large.' },
+        { 
+          success: false, 
+          error: `Failed to read file content: ${error instanceof Error ? error.message : 'Unknown error'}. File size: ${Math.round(file.size / 1024 / 1024)}MB` 
+        },
         { status: 400 }
       );
     }
