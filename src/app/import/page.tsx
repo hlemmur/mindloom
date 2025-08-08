@@ -103,7 +103,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                  <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Note organization and tagging</li>
                     <li>Cross-note relationship mapping</li>
@@ -243,7 +243,7 @@ export default function ImportPage() {
             <CardContent>
               <div className="space-y-3 mb-4">
                 <div className="text-sm text-gray-600">
-                  <strong>What you'll get:</strong>
+                  <strong>What you&apos;ll get:</strong>
                   <ul className="list-disc list-inside mt-1 space-y-1">
                     <li>Real-time data synchronization</li>
                     <li>Custom data format support</li>
@@ -269,7 +269,7 @@ export default function ImportPage() {
             <div>
               <h3 className="font-medium text-gray-900 mb-2">📚 Getting Your Data</h3>
               <p className="text-sm text-gray-600 mb-3">
-                Most platforms offer data export features. We'll walk you through the process for each supported platform.
+                Most platforms offer data export features. We&apos;ll walk you through the process for each supported platform.
               </p>
               <Button variant="outline" size="sm">View Export Guides</Button>
             </div>

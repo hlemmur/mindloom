@@ -7,10 +7,39 @@ import { processKnowledgeItemWithAI } from '@/lib/ai-processing';
 export function parseChatGPTExport(jsonContent: string): ChatGPTConversation[] {
   try {
     const data = JSON.parse(jsonContent);
+    type LooseConversation = {
+      id?: string;
+      conversation_id?: string;
+      title?: string;
+      mapping?: unknown;
+      messages?: unknown;
+      create_time?: number | string;
+      created_at?: string;
+      update_time?: number | string;
+      updated_at?: string;
+    };
     
     // Handle different possible formats from ChatGPT export
     if (Array.isArray(data)) {
-      return data.map(conversation => ({
+      return (data as LooseConversation[]).map((conversation) => ({
+        id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
+        title: conversation.title || 'Untitled Conversation',
+        messages: parseMessages(conversation.mapping || conversation.messages || []),
+        created_at: conversation.create_time || conversation.created_at || new Date().toISOString(),
+        updated_at: conversation.update_time || conversation.updated_at || new Date().toISOString(),
+      }));
+    } else if (data.conversations && Array.isArray(data.conversations)) {
+      // Root has `conversations` array
+      return (data.conversations as LooseConversation[]).map((conversation) => ({
+        id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
+        title: conversation.title || 'Untitled Conversation',
+        messages: parseMessages(conversation.mapping || conversation.messages || []),
+        created_at: conversation.create_time || conversation.created_at || new Date().toISOString(),
+        updated_at: conversation.update_time || conversation.updated_at || new Date().toISOString(),
+      }));
+    } else if (data.items && Array.isArray(data.items)) {
+      // Root has `items` array
+      return (data.items as LooseConversation[]).map((conversation) => ({
         id: conversation.id || conversation.conversation_id || crypto.randomUUID(),
         title: conversation.title || 'Untitled Conversation',
         messages: parseMessages(conversation.mapping || conversation.messages || []),
@@ -41,14 +70,38 @@ function parseMessages(messagesData: unknown): ChatGPTMessage[] {
 
   if (Array.isArray(messagesData)) {
     // Direct array of messages
-    return messagesData
-      .filter(msg => msg.content && msg.role)
-      .map(msg => ({
-        id: msg.id || crypto.randomUUID(),
-        role: msg.role,
-        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-        timestamp: msg.timestamp || msg.create_time || new Date().toISOString(),
-      }));
+    type ArrayMsg = {
+      id?: string;
+      role?: 'user' | 'assistant' | 'system';
+      author?: { role?: 'user' | 'assistant' | 'system' };
+      content?: unknown;
+      message?: { content?: unknown; create_time?: number };
+      timestamp?: string;
+      create_time?: number;
+    };
+
+    return (messagesData as ArrayMsg[])
+      .filter((msg) => (msg?.content || msg?.message?.content) && (msg?.role || msg?.author?.role))
+      .map((m) => {
+        const role = m.role || m.author?.role || 'user';
+        let content = '';
+        const c = m.content || m.message?.content;
+        if (typeof c === 'string') {
+          content = c;
+        } else if (typeof c === 'object' && c && (c as { parts?: string[] }).parts && Array.isArray((c as { parts?: string[] }).parts)) {
+          content = ((c as { parts?: string[] }).parts || []).join('\n');
+        } else {
+          content = JSON.stringify(c);
+        }
+        const ts = m.timestamp || m.create_time || m.message?.create_time;
+        const iso = ts ? (typeof ts === 'number' ? new Date(ts * 1000).toISOString() : new Date(ts).toISOString()) : new Date().toISOString();
+        return {
+          id: m.id || crypto.randomUUID(),
+          role,
+          content,
+          timestamp: iso,
+        } as ChatGPTMessage;
+      });
   } else if (typeof messagesData === 'object' && messagesData !== null) {
     // Mapping format (common in ChatGPT exports)
     Object.values(messagesData as Record<string, unknown>).forEach((nodeUnknown) => {
@@ -58,7 +111,7 @@ function parseMessages(messagesData: unknown): ChatGPTMessage[] {
         if (content.trim()) {
           messages.push({
             id: node.id || crypto.randomUUID(),
-            role: node.message.author?.role || 'user',
+            role: (node.message.author?.role as 'user' | 'assistant' | 'system') || 'user',
             content: content,
             timestamp: node.message.create_time 
               ? new Date(node.message.create_time * 1000).toISOString()
@@ -237,7 +290,9 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
       }
       
       const firstConv = data[0];
-      if (!firstConv.mapping && !firstConv.messages && !firstConv.title) {
+      // Be lenient: accept if common fields exist
+      const isLikelyConversation = !!(firstConv?.mapping || firstConv?.messages || firstConv?.title || firstConv?.create_time || firstConv?.update_time);
+      if (!isLikelyConversation) {
         return { valid: false, error: 'Invalid conversation format in export file' };
       }
       
@@ -256,6 +311,26 @@ export function validateChatGPTExport(jsonContent: string): {valid: boolean; err
           conversationCount: 1,
           firstTitle: data.title || 'Untitled',
           format: 'single_conversation',
+        },
+      };
+    } else if (data.conversations && Array.isArray(data.conversations)) {
+      const firstConv = data.conversations[0] || {};
+      return {
+        valid: true,
+        preview: {
+          conversationCount: data.conversations.length,
+          firstTitle: firstConv.title || 'Untitled',
+          format: 'root_conversations_array',
+        },
+      };
+    } else if (data.items && Array.isArray(data.items)) {
+      const firstItem = data.items[0] || {};
+      return {
+        valid: true,
+        preview: {
+          conversationCount: data.items.length,
+          firstTitle: firstItem.title || 'Untitled',
+          format: 'root_items_array',
         },
       };
     } else {

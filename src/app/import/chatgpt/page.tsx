@@ -21,7 +21,7 @@ interface ImportResult {
 }
 
 export default function ChatGPTImportPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [sourceName, setSourceName] = useState('');
@@ -150,7 +150,7 @@ export default function ChatGPTImportPage() {
               <CardContent>
                 <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
                    <li>Go to <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ChatGPT Account Settings</a></li>
-                  <li>Navigate to the "Export Data" section</li>
+                  <li>Navigate to the &quot;Export Data&quot; section</li>
                   <li>Request an export of your ChatGPT conversation data</li>
                   <li>Wait for the export email (this can take up to 30 days)</li>
                   <li>Download the ZIP file and extract the JSON file(s)</li>
