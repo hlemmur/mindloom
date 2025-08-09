@@ -62,6 +62,17 @@ export default function ChatGPTImportPage() {
     }
   }, [status, router]);
 
+  // Auto-redirect to dashboard after successful import
+  useEffect(() => {
+    if (importResult?.success && !importResult.streaming) {
+      const timer = setTimeout(() => {
+        router.push('/dashboard');
+      }, 3000); // 3 second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [importResult, router]);
+
   // Progress polling effect
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
@@ -489,13 +500,13 @@ export default function ChatGPTImportPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="text-center p-4 bg-green-50 rounded-lg">
                           <div className="text-2xl font-bold text-green-600">
-                            {importProgress?.importedItems || importResult.data?.imported || 0}
+                            {importProgress?.importedItems || importResult.data?.importedItems || importResult.data?.imported || 0}
                           </div>
                           <div className="text-sm text-green-800">Items Imported</div>
                         </div>
                         <div className="text-center p-4 bg-blue-50 rounded-lg">
                           <div className="text-2xl font-bold text-blue-600">
-                            {importProgress?.totalConversations || importResult.data?.preview?.conversationCount || 0}
+                            {importProgress?.totalConversations || importResult.data?.totalConversations || importResult.data?.preview?.conversationCount || 0}
                           </div>
                           <div className="text-sm text-blue-800">Conversations Processed</div>
                         </div>
