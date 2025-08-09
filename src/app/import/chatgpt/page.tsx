@@ -11,6 +11,7 @@ import ImportProgressComponent from '@/components/ImportProgress';
 import ChunkedUpload from '@/components/ChunkedUpload';
 import LargeFileUpload from '@/components/LargeFileUpload';
 import FileSplitGuide from '@/components/FileSplitGuide';
+import AutoChunkUpload from '@/components/AutoChunkUpload';
 
 interface ImportResult {
   success: boolean;
@@ -53,6 +54,7 @@ export default function ChatGPTImportPage() {
   const [isPollingProgress, setIsPollingProgress] = useState(false);
   const [showChunkedUpload, setShowChunkedUpload] = useState(false);
   const [showFileSplitGuide, setShowFileSplitGuide] = useState(false);
+  const [showAutoChunkUpload, setShowAutoChunkUpload] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -135,8 +137,8 @@ export default function ChatGPTImportPage() {
     const VERCEL_HARD_LIMIT = 4 * 1024 * 1024; // 4MB - Vercel's actual limit
     
     if (selectedFile.size > VERCEL_HARD_LIMIT) {
-      console.log('[Validation] File exceeds Vercel limit, showing split guide immediately');
-      setShowFileSplitGuide(true);
+      console.log('[Validation] File exceeds Vercel limit, using auto chunk upload');
+      setShowAutoChunkUpload(true);
       return;
     }
 
@@ -172,8 +174,8 @@ export default function ChatGPTImportPage() {
     const VERCEL_HARD_LIMIT = 4 * 1024 * 1024; // 4MB - Vercel's actual limit
     
     if (file.size > VERCEL_HARD_LIMIT) {
-      console.log('[Import] File exceeds Vercel hard limit, showing file splitting guide');
-      setShowFileSplitGuide(true);
+      console.log('[Import] File exceeds Vercel hard limit, using auto chunk upload');
+      setShowAutoChunkUpload(true);
       setIsUploading(false);
       return;
     } else if (file.size > VERCEL_SAFE_LIMIT) {
@@ -201,8 +203,8 @@ export default function ChatGPTImportPage() {
 
       // Check for Vercel payload size limit (413 error)
       if (response.status === 413) {
-        console.log('[Import] 413 Payload too large - showing file splitting guide');
-        setShowFileSplitGuide(true);
+        console.log('[Import] 413 Payload too large - using auto chunk upload');
+        setShowAutoChunkUpload(true);
         setIsUploading(false);
         return;
       }
@@ -265,7 +267,23 @@ export default function ChatGPTImportPage() {
       </header>
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {showFileSplitGuide && file ? (
+        {showAutoChunkUpload && file ? (
+          <AutoChunkUpload
+            file={file}
+            sourceName={sourceName || 'ChatGPT Import'}
+            onSuccess={(result) => {
+              setImportResult(result);
+              setShowAutoChunkUpload(false);
+            }}
+            onError={(error) => {
+              setImportResult({
+                success: false,
+                errors: [error],
+              });
+              setShowAutoChunkUpload(false);
+            }}
+          />
+        ) : showFileSplitGuide && file ? (
           <FileSplitGuide
             file={file}
             onClose={() => {
